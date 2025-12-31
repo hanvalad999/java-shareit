@@ -19,6 +19,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDto create(UserDto userDto) {
         validateForCreate(userDto);
+        validateEmailFormat(userDto.getEmail());
         ensureEmailUnique(userDto.getEmail(), null);
         User savedUser = userRepository.save(UserMapper.toUser(userDto));
         return UserMapper.toUserDto(savedUser);
@@ -33,6 +34,7 @@ public class UserServiceImpl implements UserService {
             existing.setName(userDto.getName());
         }
         if (StringUtils.hasText(userDto.getEmail())) {
+            validateEmailFormat(userDto.getEmail());
             ensureEmailUnique(userDto.getEmail(), id);
             existing.setEmail(userDto.getEmail());
         }
@@ -69,6 +71,12 @@ public class UserServiceImpl implements UserService {
     private void validateForCreate(UserDto userDto) {
         if (userDto == null || !StringUtils.hasText(userDto.getName()) || !StringUtils.hasText(userDto.getEmail())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and email are required");
+        }
+    }
+
+    private void validateEmailFormat(String email) {
+        if (!StringUtils.hasText(email) || !email.contains("@")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid email");
         }
     }
 }
