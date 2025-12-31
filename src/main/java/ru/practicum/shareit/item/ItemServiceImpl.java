@@ -1,10 +1,10 @@
 package ru.practicum.shareit.item;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.server.ResponseStatusException;
+import ru.practicum.shareit.exception.BadRequestException;
+import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.dto.ItemMapper;
 import ru.practicum.shareit.item.model.Item;
@@ -33,9 +33,9 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public ItemDto update(Long ownerId, Long itemId, ItemDto itemDto) {
         Item existing = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new NotFoundException("Item not found"));
         if (!ownerId.equals(existing.getOwner().getId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item does not belong to user");
+            throw new NotFoundException("Item does not belong to user");
         }
 
         if (StringUtils.hasText(itemDto.getName())) {
@@ -55,7 +55,7 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public ItemDto getById(Long itemId) {
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new NotFoundException("Item not found"));
         return ItemMapper.toItemDto(item);
     }
 
@@ -63,7 +63,6 @@ public class ItemServiceImpl implements ItemService {
     public List<ItemDto> getByOwner(Long ownerId) {
         findUser(ownerId);
         return itemRepository.findAllByOwnerId(ownerId).stream()
-                .sorted(Comparator.comparing(Item::getId))
                 .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
     }
@@ -74,7 +73,6 @@ public class ItemServiceImpl implements ItemService {
             return Collections.emptyList();
         }
         return itemRepository.search(text).stream()
-                .filter(Item::getAvailable)
                 .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
     }
@@ -82,12 +80,12 @@ public class ItemServiceImpl implements ItemService {
     private void validateForCreate(ItemDto itemDto) {
         if (itemDto == null || !StringUtils.hasText(itemDto.getName())
                 || !StringUtils.hasText(itemDto.getDescription()) || itemDto.getAvailable() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name, description and availability are required");
+            throw new BadRequestException("Name, description and availability are required");
         }
     }
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
     }
 }

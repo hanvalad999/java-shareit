@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Repository
@@ -37,6 +38,7 @@ public class InMemoryItemRepository implements ItemRepository {
                 ownedItems.add(item);
             }
         }
+        ownedItems.sort(Comparator.comparing(Item::getId));
         return ownedItems;
     }
 
@@ -45,11 +47,13 @@ public class InMemoryItemRepository implements ItemRepository {
         List<Item> result = new ArrayList<>();
         String lowerText = text.toLowerCase();
         for (Item item : items.values()) {
-            if ((item.getName() != null && item.getName().toLowerCase().contains(lowerText))
-                    || (item.getDescription() != null && item.getDescription().toLowerCase().contains(lowerText))) {
+            if (Boolean.TRUE.equals(item.getAvailable())
+                    && ((item.getName() != null && item.getName().toLowerCase().contains(lowerText))
+                    || (item.getDescription() != null && item.getDescription().toLowerCase().contains(lowerText)))) {
                 result.add(item);
             }
         }
+        result.sort(Comparator.comparing(Item::getId));
         return result;
     }
 }

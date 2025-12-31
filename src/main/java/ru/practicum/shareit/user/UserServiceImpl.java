@@ -1,10 +1,12 @@
 package ru.practicum.shareit.user;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import ru.practicum.shareit.exception.BadRequestException;
+import ru.practicum.shareit.exception.ConflictException;
+import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.dto.UserMapper;
 
@@ -28,8 +30,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDto update(Long id, UserDto userDto) {
         User existing = userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
+                .orElseThrow(() -> new NotFoundException("User not found"));
         if (StringUtils.hasText(userDto.getName())) {
             existing.setName(userDto.getName());
         }
@@ -46,7 +47,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDto getById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
         return UserMapper.toUserDto(user);
     }
 
@@ -64,19 +65,19 @@ public class UserServiceImpl implements UserService {
 
     private void ensureEmailUnique(String email, Long userId) {
         if (email != null && userRepository.existsByEmail(email, userId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already used");
+            throw new ConflictException("Email already used");
         }
     }
 
     private void validateForCreate(UserDto userDto) {
         if (userDto == null || !StringUtils.hasText(userDto.getName()) || !StringUtils.hasText(userDto.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name and email are required");
+            throw new BadRequestException("Name and email are required");
         }
     }
 
     private void validateEmailFormat(String email) {
         if (!StringUtils.hasText(email) || !email.contains("@")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid email");
+            throw new BadRequestException("Invalid email");
         }
     }
 }
