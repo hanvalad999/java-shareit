@@ -60,11 +60,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void delete(Long id) {
-        userRepository.delete(id);
+        userRepository.deleteById(id);
     }
 
     private void ensureEmailUnique(String email, Long userId) {
-        if (email != null && userRepository.existsByEmail(email, userId)) {
+        if (email != null && userRepository.existsByEmailIgnoreUser(email, userId)) {
             throw new ConflictException("Email already used");
         }
     }

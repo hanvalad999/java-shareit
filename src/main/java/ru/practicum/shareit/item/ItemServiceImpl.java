@@ -5,6 +5,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import ru.practicum.shareit.exception.BadRequestException;
 import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.booking.BookingRepository;
+import ru.practicum.shareit.booking.BookingStatus;
+import ru.practicum.shareit.item.dto.CommentDto;
+import ru.practicum.shareit.item.dto.CommentMapper;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.dto.ItemMapper;
 import ru.practicum.shareit.item.model.Item;
@@ -20,6 +24,8 @@ import java.util.stream.Collectors;
 public class ItemServiceImpl implements ItemService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
+    private final CommentRepository commentRepository;
+    private final BookingRepository bookingRepository;
 
     @Override
     public ItemDto create(Long ownerId, ItemDto itemDto) {
@@ -52,16 +58,49 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
-    public ItemDto getById(Long itemId) {
+    public ItemDto getById(Long itemId, Long userId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new NotFoundException("Item not found"));
-        return ItemMapper.toItemDto(item);
+
+        ItemDto dto = ItemMapper.toItemDto(item);
+
+        // комментарии доступны всем
+        dto.setComments(commentRepository.findAllByItem_IdOrderByCreatedDesc(itemId).stream()
+                .map(CommentMapper::toCommentDto)
+                .collect(Collectors.toList()));
+
+        // информация о бронированиях только для владельца вещи
+        if (item.getOwner() != null && userId != null && userId.equals(item.getOwner().getId())) {
+            var now = java.time.LocalDateTime.now();
+
+            bookingRepository.findFirstByItem_IdAndStartBeforeAndStatusOrderByStartDesc(
+                            itemId, now, BookingStatus.APPROVED)
+                    .ifPresent(booking -> dto.setLastBooking(
+                            new ItemDto.BookingShortDto(
+                                    booking.getId(),
+                                    booking.getBooker() != null ? booking.getBooker().getId() : null,
+                                    booking.getStart(),
+                                    booking.getEnd()
+                            )));
+
+            bookingRepository.findFirstByItem_IdAndStartAfterAndStatusOrderByStartAsc(
+                            itemId, now, BookingStatus.APPROVED)
+                    .ifPresent(booking -> dto.setNextBooking(
+                            new ItemDto.BookingShortDto(
+                                    booking.getId(),
+                                    booking.getBooker() != null ? booking.getBooker().getId() : null,
+                                    booking.getStart(),
+                                    booking.getEnd()
+                            )));
+        }
+
+        return dto;
     }
 
     @Override
     public List<ItemDto> getByOwner(Long ownerId) {
         findUser(ownerId);
-        return itemRepository.findAllByOwnerId(ownerId).stream()
+        return itemRepository.findAllByOwner_Id(ownerId).stream()
                 .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
     }
@@ -74,6 +113,35 @@ public class ItemServiceImpl implements ItemService {
         return itemRepository.search(text).stream()
                 .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public CommentDto addComment(Long userId, Long itemId, CommentDto commentDto) {
+        User author = findUser(userId);
+        Item item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found"));
+
+        boolean hasFinishedBooking = bookingRepository
+                .existsByItem_IdAndBooker_IdAndStatusAndEndBefore(
+                        itemId,
+                        userId,
+                        BookingStatus.APPROVED,
+                        java.time.LocalDateTime.now()
+                );
+
+        if (!hasFinishedBooking) {
+            throw new BadRequestException("User has no completed bookings for this item");
+        }
+
+        if (commentDto == null || !StringUtils.hasText(commentDto.getText())) {
+            throw new BadRequestException("Comment text is required");
+        }
+
+        var comment = CommentMapper.toComment(commentDto, item, author);
+        comment.setCreated(java.time.LocalDateTime.now());
+
+        var saved = commentRepository.save(comment);
+        return CommentMapper.toCommentDto(saved);
     }
 
     private void validateForCreate(ItemDto itemDto) {

@@ -18,6 +18,7 @@ public final class ItemMapper {
                 .description(item.getDescription())
                 .available(item.getAvailable())
                 .requestId(item.getRequestId())
+                // lastBooking, nextBooking и comments заполняются в сервисе
                 .build();
     }
 
