@@ -141,10 +141,6 @@ public class BookingServiceImpl implements BookingService {
         if (!start.isBefore(end)) {
             throw new BadRequestException("Start must be before end");
         }
-        LocalDateTime now = LocalDateTime.now();
-        if (start.isBefore(now) || end.isBefore(now)) {
-            throw new BadRequestException("Start and end must be in the future");
-        }
     }
 
     private User findUser(Long userId) {
