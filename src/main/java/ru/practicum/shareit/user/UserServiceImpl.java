@@ -2,74 +2,81 @@ package ru.practicum.shareit.user;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.shareit.exception.EntityNotFoundException;
+import org.springframework.util.StringUtils;
+import ru.practicum.shareit.exception.BadRequestException;
+import ru.practicum.shareit.exception.ConflictException;
+import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.user.dto.UserDto;
+import ru.practicum.shareit.user.dto.UserMapper;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
-
     private final UserRepository userRepository;
 
     @Override
-    @Transactional
     public UserDto create(UserDto userDto) {
-        User user = User.builder()
-                .name(userDto.getName())
-                .email(userDto.getEmail())
-                .build();
-        user = userRepository.save(user);
-        return toDto(user);
+        validateForCreate(userDto);
+        validateEmailFormat(userDto.getEmail());
+        ensureEmailUnique(userDto.getEmail(), null);
+        User savedUser = userRepository.save(UserMapper.toUser(userDto));
+        return UserMapper.toUserDto(savedUser);
     }
 
     @Override
-    @Transactional
     public UserDto update(Long id, UserDto userDto) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found: " + id));
-        if (userDto.getName() != null) {
-            user.setName(userDto.getName());
+        User existing = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        if (StringUtils.hasText(userDto.getName())) {
+            existing.setName(userDto.getName());
         }
-        if (userDto.getEmail() != null) {
-            user.setEmail(userDto.getEmail());
+        if (StringUtils.hasText(userDto.getEmail())) {
+            validateEmailFormat(userDto.getEmail());
+            ensureEmailUnique(userDto.getEmail(), id);
+            existing.setEmail(userDto.getEmail());
         }
-        user = userRepository.save(user);
-        return toDto(user);
+
+        userRepository.save(existing);
+        return UserMapper.toUserDto(existing);
     }
 
     @Override
     public UserDto getById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found: " + id));
-        return toDto(user);
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return UserMapper.toUserDto(user);
     }
 
     @Override
     public List<UserDto> getAll() {
         return userRepository.findAll().stream()
-                .map(this::toDto)
+                .map(UserMapper::toUserDto)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional
     public void delete(Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new EntityNotFoundException("User not found: " + id);
-        }
-        userRepository.deleteById(id);
+        userRepository.delete(id);
     }
 
-    private UserDto toDto(User user) {
-        return UserDto.builder()
-                .id(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .build();
+    private void ensureEmailUnique(String email, Long userId) {
+        if (email != null && userRepository.existsByEmail(email, userId)) {
+            throw new ConflictException("Email already used");
+        }
+    }
+
+    private void validateForCreate(UserDto userDto) {
+        if (userDto == null || !StringUtils.hasText(userDto.getName()) || !StringUtils.hasText(userDto.getEmail())) {
+            throw new BadRequestException("Name and email are required");
+        }
+    }
+
+    private void validateEmailFormat(String email) {
+        if (!StringUtils.hasText(email) || !email.contains("@")) {
+            throw new BadRequestException("Invalid email");
+        }
     }
 }
