@@ -5,8 +5,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import ru.practicum.shareit.booking.dto.BookingDto;
 import ru.practicum.shareit.booking.dto.BookingMapper;
-import ru.practicum.shareit.exception.BadRequestException;
-import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.exception.BookingAccessDeniedException;
+import ru.practicum.shareit.exception.BookingAlreadyProcessedException;
+import ru.practicum.shareit.exception.BookingApproveForbiddenException;
+import ru.practicum.shareit.exception.BookingNotFoundException;
+import ru.practicum.shareit.exception.InvalidBookingDatesException;
+import ru.practicum.shareit.exception.InvalidBookingStateException;
+import ru.practicum.shareit.exception.ItemNotAvailableException;
+import ru.practicum.shareit.exception.ItemNotFoundException;
+import ru.practicum.shareit.exception.OwnerBookingForbiddenException;
+import ru.practicum.shareit.exception.UserNotFoundException;
 import ru.practicum.shareit.item.ItemRepository;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.user.UserRepository;
@@ -30,10 +38,10 @@ public class BookingServiceImpl implements BookingService {
         Item item = findItem(bookingDto.getItemId());
 
         if (item.getOwner() != null && userId.equals(item.getOwner().getId())) {
-            throw new NotFoundException("Owner cannot book own item");
+            throw new OwnerBookingForbiddenException("Owner cannot book own item");
         }
         if (!Boolean.TRUE.equals(item.getAvailable())) {
-            throw new BadRequestException("Item is not available for booking");
+            throw new ItemNotAvailableException("Item is not available for booking");
         }
 
         validateBookingDates(bookingDto.getStart(), bookingDto.getEnd());
@@ -48,17 +56,16 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingDto approve(Long ownerId, Long bookingId, boolean approved) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found"));
+                .orElseThrow(() -> new BookingNotFoundException("Booking not found"));
 
         if (booking.getItem() == null || booking.getItem().getOwner() == null
                 || !ownerId.equals(booking.getItem().getOwner().getId())) {
-            // Пользователь не является владельцем вещи — для тестов Postman
-            // это считается ошибкой доступа (400/403), а не "не найдено".
-            throw new BadRequestException("Booking item does not belong to user");
+            // Пользователь не является владельцем вещи — попытка изменить бронирование без прав владельца.
+            throw new BookingApproveForbiddenException("Booking item does not belong to owner");
         }
 
         if (booking.getStatus() != BookingStatus.WAITING) {
-            throw new BadRequestException("Booking already processed");
+            throw new BookingAlreadyProcessedException("Booking already processed");
         }
 
         booking.setStatus(approved ? BookingStatus.APPROVED : BookingStatus.REJECTED);
@@ -69,7 +76,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingDto getById(Long userId, Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Booking not found"));
+                .orElseThrow(() -> new BookingNotFoundException("Booking not found"));
 
         Long bookerId = booking.getBooker() != null ? booking.getBooker().getId() : null;
         Long ownerId = booking.getItem() != null && booking.getItem().getOwner() != null
@@ -77,7 +84,8 @@ public class BookingServiceImpl implements BookingService {
                 : null;
 
         if (!userId.equals(bookerId) && !userId.equals(ownerId)) {
-            throw new NotFoundException("Booking not available for this user");
+            // Для домена это «пользователю недоступно данное бронирование».
+            throw new BookingAccessDeniedException("Booking not available for this user");
         }
 
         return BookingMapper.toBookingDto(booking);
@@ -130,27 +138,27 @@ public class BookingServiceImpl implements BookingService {
                         .filter(b -> b.getStatus() == BookingStatus.REJECTED)
                         .collect(Collectors.toList());
             default:
-                throw new BadRequestException("Unknown state: " + state);
+                throw new InvalidBookingStateException("Unknown state: " + state);
         }
     }
 
     private void validateBookingDates(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null) {
-            throw new BadRequestException("Start and end dates are required");
+            throw new InvalidBookingDatesException("Start and end dates are required");
         }
         if (!start.isBefore(end)) {
-            throw new BadRequestException("Start must be before end");
+            throw new InvalidBookingDatesException("Start must be before end");
         }
     }
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
     private Item findItem(Long itemId) {
         return itemRepository.findById(itemId)
-                .orElseThrow(() -> new NotFoundException("Item not found"));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found"));
     }
 }
 

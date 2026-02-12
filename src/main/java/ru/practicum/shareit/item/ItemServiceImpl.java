@@ -3,19 +3,23 @@ package ru.practicum.shareit.item;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import ru.practicum.shareit.exception.BadRequestException;
-import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.booking.BookingRepository;
 import ru.practicum.shareit.booking.BookingStatus;
+import ru.practicum.shareit.exception.InvalidCommentException;
+import ru.practicum.shareit.exception.InvalidItemDataException;
+import ru.practicum.shareit.exception.ItemNotFoundException;
+import ru.practicum.shareit.exception.NoCompletedBookingForCommentException;
+import ru.practicum.shareit.exception.UserNotFoundException;
 import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.CommentMapper;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.dto.ItemMapper;
 import ru.practicum.shareit.item.model.Item;
-import ru.practicum.shareit.user.model.User;
 import ru.practicum.shareit.user.UserRepository;
+import ru.practicum.shareit.user.model.User;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -38,9 +42,10 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public ItemDto update(Long ownerId, Long itemId, ItemDto itemDto) {
         Item existing = itemRepository.findById(itemId)
-                .orElseThrow(() -> new NotFoundException("Item not found"));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found"));
         if (!ownerId.equals(existing.getOwner().getId())) {
-            throw new NotFoundException("Item does not belong to user");
+            // Для чужого пользователя вещь считается недоступной/не найденной.
+            throw new ItemNotFoundException("Item does not belong to user");
         }
 
         if (StringUtils.hasText(itemDto.getName())) {
@@ -60,12 +65,14 @@ public class ItemServiceImpl implements ItemService {
     @Override
     public ItemDto getById(Long itemId, Long userId) {
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new NotFoundException("Item not found"));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found"));
 
         ItemDto dto = ItemMapper.toItemDto(item);
 
         // комментарии доступны всем
-        dto.setComments(commentRepository.findAllByItem_IdOrderByCreatedDesc(itemId).stream()
+        dto.setComments(item.getComments().stream()
+                .sorted(Comparator.comparing(
+                        ru.practicum.shareit.item.model.Comment::getCreated).reversed())
                 .map(CommentMapper::toCommentDto)
                 .collect(Collectors.toList()));
 
@@ -119,7 +126,7 @@ public class ItemServiceImpl implements ItemService {
     public CommentDto addComment(Long userId, Long itemId, CommentDto commentDto) {
         User author = findUser(userId);
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new NotFoundException("Item not found"));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found"));
 
         boolean hasFinishedBooking = bookingRepository
                 .existsByItem_IdAndBooker_IdAndStatusAndEndBefore(
@@ -130,11 +137,11 @@ public class ItemServiceImpl implements ItemService {
                 );
 
         if (!hasFinishedBooking) {
-            throw new BadRequestException("User has no completed bookings for this item");
+            throw new NoCompletedBookingForCommentException("User has no completed bookings for this item");
         }
 
         if (commentDto == null || !StringUtils.hasText(commentDto.getText())) {
-            throw new BadRequestException("Comment text is required");
+            throw new InvalidCommentException("Comment text is required");
         }
 
         var comment = CommentMapper.toComment(commentDto, item, author);
@@ -147,12 +154,12 @@ public class ItemServiceImpl implements ItemService {
     private void validateForCreate(ItemDto itemDto) {
         if (itemDto == null || !StringUtils.hasText(itemDto.getName())
                 || !StringUtils.hasText(itemDto.getDescription()) || itemDto.getAvailable() == null) {
-            throw new BadRequestException("Name, description and availability are required");
+            throw new InvalidItemDataException("Name, description and availability are required");
         }
     }
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 }
