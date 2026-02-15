@@ -1,0 +1,21 @@
+package ru.practicum.shareit.booking.service;
+
+import ru.practicum.shareit.booking.dto.BookingDto;
+import ru.practicum.shareit.booking.dto.BookingDtoOut;
+
+import java.util.List;
+
+/**
+ * Интерфейс BookingService, определяющий методы для работы с бронированиями
+ */
+public interface BookingService {
+    BookingDtoOut add(Long userId, BookingDto bookingDto);
+
+    BookingDtoOut update(Long userId, Long bookingId, Boolean approved);
+
+    BookingDtoOut findBookingByUserId(Long userId, Long bookingId);
+
+    List<BookingDtoOut> findAll(Long userId, String state, Integer from, Integer size);
+
+    List<BookingDtoOut> findAllOwner(Long userId, String state, Integer from, Integer size);
+}
