@@ -21,4 +21,10 @@
         <module>server</module>
         <module>gateway</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>check</id>
+        </profile>
+    </profiles>
 </project>
