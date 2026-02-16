@@ -1,84 +1,92 @@
 package ru.practicum.shareit.item.mapper;
 
 import lombok.experimental.UtilityClass;
-import ru.practicum.shareit.booking.dto.BookingDtoOut;
-import ru.practicum.shareit.item.dto.CommentDtoOut;
+import ru.practicum.shareit.booking.model.Booking;
+import ru.practicum.shareit.item.dto.CommentDto;
+import ru.practicum.shareit.item.dto.ItemDetailDto;
 import ru.practicum.shareit.item.dto.ItemDto;
-import ru.practicum.shareit.item.dto.ItemDtoOut;
+import ru.practicum.shareit.item.dto.ItemWithBookingsDto;
 import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.request.ItemRequest;
+import ru.practicum.shareit.user.User;
 
 import java.util.List;
 
 @UtilityClass
 public class ItemMapper {
 
-    /**
-     * Преобразует объект вещи в объект ItemDto.
-     *
-     * @param item - объект вещи
-     * @return объект ItemDto
-     */
-    public ItemDto toItemDto(Item item) {
-        ItemDto itemDto = new ItemDto(
-                item.getName(),
-                item.getDescription(),
-                item.getAvailable());
-
-        if (item.getRequest() != null) {
-            itemDto.setRequestId(item.getRequest().getId());
+    public ItemDto toDto(Item item) {
+        if (item == null) {
+            return null;
         }
-
-        return itemDto;
+        return ItemDto.builder()
+                .id(item.getId())
+                .name(item.getName())
+                .description(item.getDescription())
+                .available(item.getAvailable())
+                .ownerId(item.getOwner() != null ? item.getOwner().getId() : null)
+                .requestId(item.getRequest() != null ? item.getRequest().getId() : null)
+                .build();
     }
 
-    /**
-     * Преобразует объект вещи в объект ItemDtoOut.
-     *
-     * @param item - объект вещи
-     * @return объект ItemDtoOut
-     */
-    public ItemDtoOut toItemDtoOut(Item item) {
-        ItemDtoOut itemDtoOut = new ItemDtoOut(
-                item.getId(),
-                item.getName(),
-                item.getDescription(),
-                item.getAvailable());
-        if (item.getRequest() != null) {
-            itemDtoOut.setRequestId(item.getRequest().getId());
+    public ItemDetailDto toDetailDto(Item item, Booking lastBooking, Booking nextBooking, List<CommentDto> comments) {
+        if (item == null) {
+            return null;
         }
-        return itemDtoOut;
+        return ItemDetailDto.builder()
+                .id(item.getId())
+                .name(item.getName())
+                .description(item.getDescription())
+                .available(item.getAvailable())
+                .lastBooking(lastBooking != null ? toDetailBookingShortDto(lastBooking) : null)
+                .nextBooking(nextBooking != null ? toDetailBookingShortDto(nextBooking) : null)
+                .comments(comments != null ? comments : List.of())
+                .build();
     }
 
-    /**
-     * Преобразует объект вещи, последнее бронирование, список комментариев и следующее бронирование в объект ItemDtoOut.
-     *
-     * @param item        - объект вещи
-     * @param lastBooking - последнее бронирование
-     * @param comments    - список комментариев
-     * @param nextBooking - следующее бронирование
-     * @return объект ItemDtoOut
-     */
-    public ItemDtoOut toItemDtoOut(Item item, BookingDtoOut lastBooking, List<CommentDtoOut> comments, BookingDtoOut nextBooking) {
-        return new ItemDtoOut(
-                item.getId(),
-                item.getName(),
-                item.getDescription(),
-                item.getAvailable(),
-                lastBooking,
-                comments,
-                nextBooking);
+    private ItemDetailDto.BookingShortDto toDetailBookingShortDto(Booking booking) {
+        return ItemDetailDto.BookingShortDto.builder()
+                .id(booking.getId())
+                .bookerId(booking.getBooker().getId())
+                .start(booking.getStart())
+                .end(booking.getEnd())
+                .build();
     }
 
-    /**
-     * Создает объект вещи на основе данных из ItemDto.
-     *
-     * @param itemDto - объект данных вещи
-     * @return объект Item
-     */
-    public Item toItem(ItemDto itemDto) {
-        return new Item(
-                itemDto.getName(),
-                itemDto.getDescription(),
-                itemDto.getAvailable());
+    public ItemWithBookingsDto toWithBookingsDto(Item item, Booking lastBooking, Booking nextBooking) {
+        if (item == null) {
+            return null;
+        }
+        return ItemWithBookingsDto.builder()
+                .id(item.getId())
+                .name(item.getName())
+                .description(item.getDescription())
+                .available(item.getAvailable())
+                .lastBooking(lastBooking != null ? toBookingShortDto(lastBooking) : null)
+                .nextBooking(nextBooking != null ? toBookingShortDto(nextBooking) : null)
+                .build();
+    }
+
+    private ItemWithBookingsDto.BookingShortDto toBookingShortDto(Booking booking) {
+        return ItemWithBookingsDto.BookingShortDto.builder()
+                .id(booking.getId())
+                .bookerId(booking.getBooker().getId())
+                .start(booking.getStart())
+                .end(booking.getEnd())
+                .build();
+    }
+
+    public Item toItem(ItemDto dto, User owner, ItemRequest request) {
+        if (dto == null) {
+            return null;
+        }
+        return Item.builder()
+                .id(dto.getId())
+                .name(dto.getName())
+                .description(dto.getDescription())
+                .available(dto.getAvailable())
+                .owner(owner)
+                .request(request)
+                .build();
     }
 }

@@ -1,21 +1,21 @@
 package ru.practicum.shareit.user.service;
 
-import ru.practicum.shareit.user.UserDto;
+import ru.practicum.shareit.user.User;
+import ru.practicum.shareit.user.dto.UserDto;
 
-import java.util.List;
+import java.util.Collection;
 
-/**
- * Интерфейс UserService, определяющий методы для работы с пользователями.
- */
 public interface UserService {
 
-    UserDto add(UserDto userDto);
+    UserDto create(UserDto userDto);
+
+    UserDto getById(Long id);
+
+    User findUserEntityById(Long id);
+
+    Collection<UserDto> getAll();
 
     UserDto update(Long id, UserDto userDto);
 
-    UserDto findById(Long id);
-
     void delete(Long id);
-
-    List<UserDto> findAll();
 }
