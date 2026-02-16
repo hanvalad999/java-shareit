@@ -23,10 +23,14 @@ public class ItemClient extends BaseClient {
 
     @Autowired
     public ItemClient(@Value("${shareit-server.url}") String serverUrl, RestTemplateBuilder builder) {
-        super(builder.uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl + API_PREFIX))
-                .requestFactory(HttpComponentsClientHttpRequestFactory::new)
-                .build()
-        );
+        super(builder
+                .uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl + API_PREFIX))
+                .requestFactory((java.util.function.Supplier<org.springframework.http.client.ClientHttpRequestFactory>) () -> {
+                    HttpComponentsClientHttpRequestFactory rf = new HttpComponentsClientHttpRequestFactory();
+                    rf.setHttpClient(org.apache.hc.client5.http.impl.classic.HttpClients.createDefault());
+                    return rf;
+                })
+                .build());
     }
 
     /**

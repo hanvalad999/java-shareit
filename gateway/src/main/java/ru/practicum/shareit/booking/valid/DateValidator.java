@@ -2,8 +2,8 @@ package ru.practicum.shareit.booking.valid;
 
 import ru.practicum.shareit.booking.dto.BookItemRequestDto;
 
-import javax.validation.ConstraintValidator;
-import javax.validation.ConstraintValidatorContext;
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
 import java.time.LocalDateTime;
 
 /**

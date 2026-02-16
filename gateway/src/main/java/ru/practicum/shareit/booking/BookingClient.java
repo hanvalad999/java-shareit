@@ -1,9 +1,12 @@
 package ru.practicum.shareit.booking;
 
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.DefaultUriBuilderFactory;
@@ -12,22 +15,22 @@ import ru.practicum.shareit.booking.dto.BookingState;
 import ru.practicum.shareit.client.BaseClient;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
-/**
- * Класс BookingClient является клиентом для взаимодействия с API бронирования.
- * Наследуется от класса BaseClient.
- * Класс содержит методы для выполнения операций взаимодействия с API бронирования.
- */
 @Service
 public class BookingClient extends BaseClient {
     private static final String API_PREFIX = "/bookings";
 
     @Autowired
     public BookingClient(@Value("${shareit-server.url}") String serverUrl, RestTemplateBuilder builder) {
-        super(builder.uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl + API_PREFIX))
-                .requestFactory(HttpComponentsClientHttpRequestFactory::new)
-                .build()
-        );
+        super(builder
+                .uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl + API_PREFIX))
+                .requestFactory((Supplier<ClientHttpRequestFactory>) () -> {
+                    HttpComponentsClientHttpRequestFactory rf = new HttpComponentsClientHttpRequestFactory();
+                    rf.setHttpClient(HttpClients.createDefault());
+                    return rf;
+                })
+                .build());
     }
 
     /**
