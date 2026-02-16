@@ -1,118 +1,186 @@
 package ru.practicum.shareit.user;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import ru.practicum.shareit.exceptions.ConflictException;
+import ru.practicum.shareit.exceptions.NotFoundException;
 import ru.practicum.shareit.user.controller.UserController;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.service.UserService;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-
-@WebMvcTest(controllers = UserController.class)
+@WebMvcTest(UserController.class)
 class UserControllerTest {
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private MockMvc mockMvc;
 
     @Autowired
-    private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
 
     @MockBean
     private UserService userService;
 
     @Test
-    @SneakyThrows
-    void createUserWhenUserIsValid() {
-        UserDto userDtoToCreate = UserDto.builder()
-                .email("email@email.com")
-                .name("name")
+    void create_shouldReturnCreatedUser_whenValidData() throws Exception {
+        UserDto inputDto = UserDto.builder()
+                .name("John Doe")
+                .email("john@example.com")
+                .build();
+        UserDto outputDto = UserDto.builder()
+                .id(1L)
+                .name("John Doe")
+                .email("john@example.com")
                 .build();
 
-        when(userService.add(userDtoToCreate)).thenReturn(userDtoToCreate);
+        when(userService.create(any(UserDto.class))).thenReturn(outputDto);
 
-        String result = mockMvc.perform(post("/users")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(userDtoToCreate)))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inputDto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("John Doe"))
+                .andExpect(jsonPath("$.email").value("john@example.com"));
 
-        assertEquals(objectMapper.writeValueAsString(userDtoToCreate), result);
+        verify(userService).create(any(UserDto.class));
     }
 
     @Test
-    @SneakyThrows
-    void updateUserWhenUserIsValid() {
-        Long userId = 0L;
-        UserDto userDtoToUpdate = UserDto.builder()
-                .email("update@update.com")
-                .name("update")
+    void create_shouldReturnConflict_whenEmailAlreadyExists() throws Exception {
+        UserDto inputDto = UserDto.builder()
+                .name("John Doe")
+                .email("john@example.com")
                 .build();
 
-        when(userService.update(userId, userDtoToUpdate)).thenReturn(userDtoToUpdate);
+        when(userService.create(any(UserDto.class)))
+                .thenThrow(new ConflictException("Email already in use"));
 
-        String result = mockMvc.perform(patch("/users/{userId}", userId)
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(userDtoToUpdate)))
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inputDto)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void getById_shouldReturnUser_whenUserExists() throws Exception {
+        UserDto userDto = UserDto.builder()
+                .id(1L)
+                .name("John Doe")
+                .email("john@example.com")
+                .build();
+
+        when(userService.getById(1L)).thenReturn(userDto);
+
+        mockMvc.perform(get("/users/1"))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("John Doe"))
+                .andExpect(jsonPath("$.email").value("john@example.com"));
 
-        assertEquals(objectMapper.writeValueAsString(userDtoToUpdate), result);
+        verify(userService).getById(1L);
     }
 
     @Test
-    @SneakyThrows
-    void get() {
-        long userId = 0L;
+    void getById_shouldReturnNotFound_whenUserDoesNotExist() throws Exception {
+        when(userService.getById(999L))
+                .thenThrow(new NotFoundException("User not found with id: 999"));
 
-        mockMvc.perform(MockMvcRequestBuilders.get("/users/{userId}", userId))
-                .andDo(print())
-                .andExpect(status().isOk());
-
-        verify(userService).findById(userId);
+        mockMvc.perform(get("/users/999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @SneakyThrows
-    void findAll() {
-        List<UserDto> usersDtoToExpect = List.of(UserDto.builder().name("name").email("email@email.com").build());
+    void getAll_shouldReturnAllUsers() throws Exception {
+        UserDto user1 = UserDto.builder()
+                .id(1L)
+                .name("User 1")
+                .email("user1@example.com")
+                .build();
+        UserDto user2 = UserDto.builder()
+                .id(2L)
+                .name("User 2")
+                .email("user2@example.com")
+                .build();
 
-        when(userService.findAll()).thenReturn(usersDtoToExpect);
+        when(userService.getAll()).thenReturn(List.of(user1, user2));
 
-        String result = mockMvc.perform(MockMvcRequestBuilders.get("/users"))
+        mockMvc.perform(get("/users"))
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[1].id").value(2));
 
-        assertEquals(objectMapper.writeValueAsString(usersDtoToExpect), result);
+        verify(userService).getAll();
     }
 
     @Test
-    @SneakyThrows
-    void delete() {
-        long userId = 0L;
+    void update_shouldReturnUpdatedUser() throws Exception {
+        UserDto inputDto = UserDto.builder()
+                .name("Updated Name")
+                .build();
+        UserDto outputDto = UserDto.builder()
+                .id(1L)
+                .name("Updated Name")
+                .email("john@example.com")
+                .build();
 
-        mockMvc.perform(MockMvcRequestBuilders.delete("/users/{id}", userId))
-                .andExpect(status().isOk());
+        when(userService.update(eq(1L), any(UserDto.class))).thenReturn(outputDto);
 
-        verify(userService, times(1)).delete(userId);
+        mockMvc.perform(patch("/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inputDto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("Updated Name"));
+
+        verify(userService).update(eq(1L), any(UserDto.class));
+    }
+
+    @Test
+    void update_shouldReturnNotFound_whenUserDoesNotExist() throws Exception {
+        UserDto inputDto = UserDto.builder()
+                .name("Updated Name")
+                .build();
+
+        when(userService.update(eq(999L), any(UserDto.class)))
+                .thenThrow(new NotFoundException("User not found"));
+
+        mockMvc.perform(patch("/users/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inputDto)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void delete_shouldReturnNoContent_whenUserExists() throws Exception {
+        mockMvc.perform(delete("/users/1"))
+                .andExpect(status().isNoContent());
+
+        verify(userService).delete(1L);
+    }
+
+    @Test
+    void delete_shouldReturnNotFound_whenUserDoesNotExist() throws Exception {
+        doThrow(new NotFoundException("User not found"))
+                .when(userService).delete(999L);
+
+        mockMvc.perform(delete("/users/999"))
+                .andExpect(status().isNotFound());
     }
 }
